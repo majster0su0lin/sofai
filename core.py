@@ -11,4 +11,9 @@ else:
 print("sofai startin~")
 while True:
     x = input("usah>>> ")
-    print (x)
+    compare = x == "//exit"
+    if true == compare:
+        print("bye bye~")
+        break
+    else:
+        print(x)
