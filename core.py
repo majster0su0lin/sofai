@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from pathlib import Path
 from llama_cpp import Llama
 z = 512
@@ -36,3 +37,5 @@ while True:
                 response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL).strip()
                 print(response)
                 messages.append({"role": "assistant", "content": response})
+                with open("hcat.json", "w", encoding="utf-8") as f:
+                    json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
