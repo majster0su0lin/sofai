@@ -21,6 +21,22 @@ while True:
     compare = x == "//exit"
     if True == compare:
         print("bye bye~")
+        with open("hcat.json", "w", encoding="utf-8") as h:
+            json.dump({"messages": messages}, h, indent=2, ensure_ascii=False)
+        review_messages = messages + [{
+            "role": "user",
+            "content": (
+                "Review the conversation above. Find only assistant messages that are incorrect "
+                "or misleading, and correct them. Return a JSON array only, with no Markdown or "
+                "explanation. Each item must have exactly these keys: \"question\" and \"correction\". "
+                "Put the original user question in \"question\" and the corrected assistant answer "
+                "in \"correction\". Return [] if every assistant answer is correct."
+            )
+        }]
+        result = llm.create_chat_completion(messages=review_messages, max_tokens=4096, temperature=y)
+        review = result["choices"][0]["message"]["content"]
+        review = re.sub(r"<think>.*?(?:</think>|$)\s*", "", review, flags=re.DOTALL).strip()
+        print(review)
         break
     else:
         compare = x == "//maxtokens"
