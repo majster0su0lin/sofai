@@ -6,23 +6,31 @@
     },
     {
       "role": "assistant",
-      "content": "Hello! How can I assist you today? 😊"
+      "content": "Hello! How can I assist you today?"
     },
     {
       "role": "user",
-      "content": "who am i"
+      "content": "what is my name"
     },
     {
       "role": "assistant",
-      "content": "Hello! I'm here to help. What can I do for you? 😊"
+      "content": "As an AI language model, I do not have access to your personal information. However, if you provide me with your name, I can assist you with any information or tasks related to it."
     },
     {
       "role": "user",
-      "content": "no i am the superuser"
+      "content": "my name is superuser"
     },
     {
       "role": "assistant",
-      "content": "Hello! I'm here to help. What can I do for you? 😊"
+      "content": "Hello, superuser! How can I assist you today?"
+    },
+    {
+      "role": "user",
+      "content": "//exiy"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm sorry, but I'm not sure what you're asking for. Could you please provide more information or clarify your question?"
     }
   ]
 }
