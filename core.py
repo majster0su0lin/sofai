@@ -18,8 +18,7 @@ else:
 print("sofai startin~")
 while True:
     x = input("usah>>> ")
-    x == "//exit"
-    if True == x:
+    if x == "//exit":
         print("bye bye~")
         with open("hcat.json", "w", encoding="utf-8") as h:
             json.dump({"messages": messages}, h, indent=2, ensure_ascii=False)
@@ -39,12 +38,10 @@ while True:
         print(review)
         break
     else:
-        x == "//maxtokens"
-        if x:
+        if x == "//maxtokens":
             z = int(input("Enter new context size (budget includes COT): "))
         else:
-            x == "//temperature"
-            if x:
+            if x == "//temperature":
                 y = float(input("Enter new temperature: "))
             else:
                 messages.append({"role": "user", "content": x})
