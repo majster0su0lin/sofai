@@ -9,7 +9,17 @@ x = ""
 model_path = Path(__file__).parent / "models" / "usablemoddels"
 modelf = sorted(model_path.glob("*.gguf"))
 llm = Llama(model_path=str(modelf[0]), verbose=False)
-messages = []
+messages = [{
+    "role": "system",
+    "content": (
+        "You are an assistant running inside a Python program. The program can read text files "
+        "inside its files folder when you request that action. If the user asks you to open, read, "
+        "or explain a file in that folder, reply with exactly this marker and nothing else: "
+        "//openfolder. Python will perform the file operation and send you the contents. "
+        "Do not claim that you cannot access files when the user asks about a file; use the marker. "
+        "For other requests, answer normally."
+    ),
+}]
 if not modelf:
     print("No usable models found in the 'models/usablemoddels' directory.")
     exit(1)
@@ -58,10 +68,54 @@ while True:
                 y = float(input("Enter new temperature: "))
             else:
                 messages.append({"role": "user", "content": x})
+                print("thinking...")
                 result = llm.create_chat_completion(messages=messages, max_tokens=z, temperature=y)
                 response = result["choices"][0]["message"]["content"]
                 response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL).strip()
-                print(response)
-                messages.append({"role": "assistant", "content": response})
-                with open("hcat.json", "w", encoding="utf-8") as f:
-                    json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
+                if response == "//openfolder":
+                    print("Opening files...")
+                    messages.append({"role": "assistant", "content": response})
+                    with open("hcat.json", "w", encoding="utf-8") as f:
+                        json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
+                    fl = Path(__file__).parent / "files"
+                    available_files = [file for file in fl.iterdir() if file.is_file()]
+                    list_of_files = "\n".join(file.name for file in available_files)
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            f"Available files:\n{list_of_files}\n"
+                            "Choose the file requested by the user. Reply with only its exact filename."
+                        ),
+                    })
+                    with open("hcat.json", "w", encoding="utf-8") as f:
+                        json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
+                    print("thinking...")
+                    result = llm.create_chat_completion(messages=messages, max_tokens=z, temperature=y)
+                    response = result["choices"][0]["message"]["content"]
+                    response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL).strip()
+                    selected_name = response.strip().strip("\"'")
+                    if Path(selected_name).name != selected_name:
+                        raise ValueError("The model returned an invalid filename.")
+                    fil = fl / selected_name
+                    if not fil.is_file():
+                        raise FileNotFoundError(f"Selected file does not exist: {selected_name}")
+                    content = fil.read_text(encoding="utf-8")
+                    messages.append({
+                        "role": "user",
+                        "content": f"Contents of {selected_name}:\n{content}\nAnswer the user's question about this file.",
+                    })
+                    with open("hcat.json", "w", encoding="utf-8") as f:
+                        json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
+                    print("thinking...")
+                    result = llm.create_chat_completion(messages=messages, max_tokens=z, temperature=y)
+                    response = result["choices"][0]["message"]["content"]
+                    response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL).strip()
+                    print(response)
+                    messages.append({"role": "assistant", "content": response})
+                    with open("hcat.json", "w", encoding="utf-8") as f:
+                        json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
+                else:
+                    print(response)
+                    messages.append({"role": "assistant", "content": response})
+                    with open("hcat.json", "w", encoding="utf-8") as f:
+                        json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
