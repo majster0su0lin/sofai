@@ -2,42 +2,22 @@
   "messages": [
     {
       "role": "system",
-      "content": "You are an assistant running inside a Python program. The program can read text files inside its files folder when you request that action. If the user asks you to open, read, or explain a file in that folder, reply with exactly this marker and nothing else: //openfolder. Python will perform the file operation and send you the contents. Do not claim that you cannot access files when the user asks about a file; use the marker. For other requests, answer normally."
+      "content": "You are an assistant running inside a Python program. The program can read text files inside its files folder when you request that action. If the user asks you to open, read, or explain a file in that folder, reply with exactly this marker and nothing else: //openfolder. Python will perform the file operation and send you the contents. When shown a list of unread filenames, choose the exact filename most relevant to the user's request and reply with only that filename. After receiving file contents, if the user asked for multiple files or all files and unread files remain, reply exactly //openagain. Otherwise answer the user normally. Do not claim that you cannot access files when the user asks about a file; use the marker. For other requests, answer normally."
     },
     {
       "role": "user",
-      "content": "can you look trough both files and tell me whats in them"
+      "content": "what is in hello.txt and test.json"
     },
     {
       "role": "assistant",
       "content": "//openfolder"
     },
     {
-      "role": "user",
+      "role": "system",
       "content": "Available files:\nhello.txt\ntest.json\nChoose the file requested by the user. Reply with only its exact filename."
     },
     {
-      "role": "user",
-      "content": "Contents of hello.txt:\nhi :3 516898\nwhat about now\n\nAnswer the user's question about this file. Or chose to open another file if the user requested that by saying //openagain and nothing else. If the user did not request another file, answer normally."
-    },
-    {
-      "role": "assistant",
-      "content": "hi :3 516898\nwhat about now"
-    },
-    {
-      "role": "user",
-      "content": "can you look trough both"
-    },
-    {
-      "role": "assistant",
-      "content": "//openfolder"
-    },
-    {
-      "role": "user",
-      "content": "Available files:\nhello.txt\ntest.json\nChoose the file requested by the user. Reply with only its exact filename."
-    },
-    {
-      "role": "user",
+      "role": "system",
       "content": "Contents of hello.txt:\nhi :3 516898\nwhat about now\n\nAnswer the user's question about this file. Or chose to open another file if the user requested that by saying //openagain and nothing else. If the user did not request another file, answer normally."
     },
     {

@@ -16,6 +16,10 @@ messages = [{
         "inside its files folder when you request that action. If the user asks you to open, read, "
         "or explain a file in that folder, reply with exactly this marker and nothing else: "
         "//openfolder. Python will perform the file operation and send you the contents. "
+        "When shown a list of unread filenames, choose the exact filename most relevant to the "
+        "user's request and reply with only that filename. After receiving file contents, if the "
+        "user asked for multiple files or all files and unread files remain, reply exactly "
+        "//openagain. Otherwise answer the user normally. "
         "Do not claim that you cannot access files when the user asks about a file; use the marker. "
         "For other requests, answer normally."
     ),
@@ -82,7 +86,7 @@ while True:
                         available_files = [file for file in fl.iterdir() if file.is_file()]
                         list_of_files = "\n".join(file.name for file in available_files)
                         messages.append({
-                            "role": "user",
+                            "role": "system",
                             "content": (
                                 f"Available files:\n{list_of_files}\n"
                                 "Choose the file requested by the user. Reply with only its exact filename."
@@ -102,7 +106,7 @@ while True:
                             raise FileNotFoundError(f"Selected file does not exist: {selected_name}")
                         content = fil.read_text(encoding="utf-8")
                         messages.append({
-                            "role": "user",
+                            "role": "system",
                             "content": f"Contents of {selected_name}:\n{content}\nAnswer the user's question about this file. Or chose to open another file if the user requested that by saying //openagain and nothing else. If the user did not request another file, answer normally.",
                         })
                         with open("hcat.json", "w", encoding="utf-8") as f:
