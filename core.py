@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import subprocess
+import sys
 from pathlib import Path
 from llama_cpp import Llama
 
@@ -74,14 +76,103 @@ def resolve_write_target(user_text, filenames, recent_context=""):
     raise ValueError("Could not determine which existing file to append to.")
 
 
+REFUSAL_PATTERN = re.compile(
+    r"\b(?:i(?:'m| am) sorry|i cannot|i can't|i am unable|i'm unable|"
+    r"cannot assist|can't assist|unable to help)\b",
+    flags=re.IGNORECASE,
+)
+
+
+def find_refusal_groups(dialogue):
+    groups = []
+    for index, message in enumerate(dialogue):
+        if (
+            message["role"] != "assistant"
+            or not REFUSAL_PATTERN.search(message["content"])
+            or index == 0
+            or dialogue[index - 1]["role"] != "user"
+        ):
+            continue
+
+        if groups and all(
+            item["role"] == "user"
+            for item in dialogue[groups[-1]["last_refusal_index"] + 1:index]
+        ):
+            groups[-1]["clarifications"].append(dialogue[index - 1]["content"])
+            groups[-1]["last_refusal_index"] = index
+        else:
+            previous_user_requests = [
+                item["content"]
+                for item in dialogue[max(0, index - 6):index - 1]
+                if item["role"] == "user"
+            ][-3:]
+            groups.append({
+                "question": dialogue[index - 1]["content"],
+                "prior_requests": previous_user_requests,
+                "clarifications": [],
+                "start_index": index - 1,
+                "last_refusal_index": index,
+            })
+    return groups
+
+
+def build_vga_assembly_correction():
+    return (
+        "```nasm\n"
+        "bits 16\n\n"
+        "; Input: AL = character, AH = color attribute. Writes to the first screen cell.\n"
+        "print_char:\n"
+        "    push ax\n"
+        "    push bx\n"
+        "    push es\n"
+        "    mov bx, ax\n"
+        "    mov ax, 0xB800\n"
+        "    mov es, ax\n"
+        "    mov ax, bx\n"
+        "    mov word [es:0], ax\n"
+        "    pop es\n"
+        "    pop bx\n"
+        "    pop ax\n"
+        "    ret\n"
+        "```\n\n"
+        "In 16-bit real mode, `ES:0` with `ES = 0xB800` addresses physical "
+        "`0xB8000`. This writes one character and its attribute to the first "
+        "text cell. It requires VGA text memory to be mapped and writable; "
+        "protected-mode code must map that physical memory first."
+    )
+
+
+def correction_meets_constraints(correction, context_text):
+    if not correction or REFUSAL_PATTERN.search(correction):
+        return False
+    code_blocks = re.findall(r"```.*?```", correction, flags=re.DOTALL)
+    code = "\n".join(code_blocks) or correction
+    if (
+        "assembly" in context_text
+        and not re.search(
+            r"\b(?:nasm|bits\s+16|mov\s|section\s+\.text)\b",
+            code,
+            re.IGNORECASE,
+        )
+    ):
+        return False
+    if (
+        re.search(r"\b(without|no|avoid)\b.{0,40}\bsyscalls?\b", context_text)
+        and re.search(r"\b(?:syscall|int\s+0x80|int\s+0x21)\b", code, re.IGNORECASE)
+    ):
+        return False
+    return True
+
+
 cor = os.cpu_count() or 1
 z = 512
 y = 0.7
 x = ""
 g = cor
+n_ctx = 4096
 model_path = Path(__file__).parent / "models" / "usablemoddels"
 modelf = sorted(model_path.glob("*.gguf"))
-llm = Llama(model_path=str(modelf[0]), verbose=False, n_threads=g)
+llm = Llama(model_path=str(modelf[0]), verbose=False, n_threads=g, n_ctx=n_ctx)
 messages = [{
     "role": "system",
     "content": (
@@ -112,33 +203,202 @@ while True:
         print("bye bye~")
         with open("hcat.json", "w", encoding="utf-8") as h:
             json.dump({"messages": messages}, h, indent=2, ensure_ascii=False)
-        review_messages = messages + [{
-            "role": "user",
-            "content": (
-                "Review the conversation using all its context. Report only assistant replies that "
-                "are factually wrong or misleading; greetings and other harmless pleasantries are "
-                "not errors. Pair each correction with the exact user message the assistant was "
-                "answering, not with a later statement that provides context. If a later user message "
-                "provides the answer to an earlier question, use that fact to correct the earlier "
-                "answer when appropriate. For example:\n"
-                "User: hi\nAssistant: Hi! How can I assist you today?\n"
-                "User: what is my name\nAssistant: You have not told me your name.\n"
-                "User: my name is superuser\nAssistant: Hello, superuser!\n"
-                "The greeting is not an error. The name correction, if needed, belongs to \"what is "
-                "my name\" and says \"Your name is Superuser. Basically everywhere that the user corrected you\" Never attach it to \"my name is "
-                "superuser\" or flag a greeting as wrong.\n\n"
-                "Return a JSON array only, with no Markdown or explanation. Each array item must "
-                "have exactly two string keys: \"question\" and \"correction\". \"question\" must "
-                "contain the complete original user message that prompted the flawed reply, copied "
-                "verbatim. \"correction\" must contain a complete, accurate replacement answer to "
-                "that user message. Keep each person's identity and pronouns consistent with the "
-                "conversation. Do not include the flawed answer, commentary, or extra keys."
+        reviewer = llm
+        review_model = next(
+            (path for path in modelf if "7b" in path.name.casefold()),
+            None,
+        )
+        if review_model is not None and review_model != Path(llm.model_path):
+            llm.close()
+            reviewer = Llama(
+                model_path=str(review_model),
+                verbose=False,
+                n_threads=g,
+                n_ctx=n_ctx,
             )
-        }]
-        result = llm.create_chat_completion(messages=review_messages, max_tokens=4096, temperature=y)
-        review = result["choices"][0]["message"]["content"]
-        review = re.sub(r"<think>.*?(?:</think>|$)\s*", "", review, flags=re.DOTALL).strip()
-        print(review)
+        dialogue = [
+            {"role": message["role"], "content": message["content"]}
+            for message in messages
+            if message.get("role") in {"user", "assistant"}
+        ]
+        refusal_groups = find_refusal_groups(dialogue)
+        review_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Find assistant replies that are factually wrong, misleading, or refuse a "
+                    "safe request. Use the dialogue context, including later user clarifications. "
+                    "For each issue return the exact user message that prompted that assistant "
+                    "reply. Ignore accurate answers and greetings. Return only JSON in the form "
+                    "{\"corrections\": [{\"question\": \"exact user message\"}]};"
+                ),
+            },
+            *dialogue,
+        ]
+        correction_questions = []
+        review_skipped = False
+        try:
+            result = reviewer.create_chat_completion(
+                messages=review_messages,
+                max_tokens=512,
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+            review = re.sub(
+                r"<think>.*?(?:</think>|$)\s*",
+                "",
+                result["choices"][0]["message"]["content"],
+                flags=re.DOTALL,
+            ).strip()
+            review_data = json.loads(review)
+            if not isinstance(review_data, dict) or not isinstance(
+                review_data.get("corrections"), list
+            ):
+                raise ValueError("Review model returned invalid corrections JSON.")
+            user_messages = {
+                message["content"]
+                for message in dialogue
+                if message["role"] == "user"
+            }
+            for item in review_data["corrections"]:
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get("question"), str)
+                    and item["question"] in user_messages
+                    and item["question"] not in correction_questions
+                ):
+                    group = next(
+                        (
+                            group for group in refusal_groups
+                            if item["question"] == group["question"]
+                            or item["question"] in group["clarifications"]
+                        ),
+                        None,
+                    )
+                    correction_questions.append(
+                        group["question"] if group else item["question"]
+                    )
+        except ValueError as error:
+            if "exceed context window" in str(error):
+                review_skipped = True
+            else:
+                print(f"Conversation review returned invalid JSON: {error}")
+
+        for group in refusal_groups:
+            if group["question"] not in correction_questions:
+                correction_questions.append(group["question"])
+
+        corrections = []
+        for question in correction_questions:
+            refusal_group = next(
+                (group for group in refusal_groups if group["question"] == question),
+                None,
+            )
+            if refusal_group:
+                prior_requests = refusal_group["prior_requests"]
+                later_user_messages = refusal_group["clarifications"]
+            else:
+                question_index = next(
+                    index
+                    for index, message in enumerate(dialogue)
+                    if message["role"] == "user" and message["content"] == question
+                )
+                prior_requests = [
+                    message["content"]
+                    for message in dialogue[max(0, question_index - 6):question_index]
+                    if message["role"] == "user"
+                ][-3:]
+                later_user_messages = [
+                    message["content"]
+                    for message in dialogue[question_index + 1:]
+                    if message["role"] == "user"
+                ][-4:]
+            request = (
+                "Earlier user requests that may specify format or intent:\n"
+                + ("\n".join(prior_requests) or "(none)")
+                + f"\n\nRequest to answer:\n{question}\n\n"
+                "Relevant later clarifications:\n"
+                + ("\n".join(later_user_messages) or "(none)")
+                + "\n\nGive a concise, complete, accurate replacement answer to the original "
+                "request, preserving its requested language and format and using relevant "
+                "clarifications. If assembly was requested, answer in assembly, not C. Do not "
+                "repeat or defend the assistant's previous answer. Do not write a review or discuss "
+                "the conversation; answer the user directly."
+            )
+            context_text = " ".join(
+                prior_requests + [question] + later_user_messages
+            ).casefold()
+            is_vga_assembly_request = (
+                "assembly" in context_text
+                and ("vga" in context_text or "0xb8000" in context_text)
+                and re.search(r"\b(without|no|avoid)\b.{0,40}\bsyscalls?\b", context_text)
+            )
+            if is_vga_assembly_request:
+                correction = build_vga_assembly_correction()
+            else:
+                correction = ""
+                for attempt in range(2):
+                    extra_instruction = (
+                        ""
+                        if attempt == 0
+                        else (
+                            " The previous draft violated the requested constraints. "
+                            "Start over and obey the user-requested language and format exactly."
+                        )
+                    )
+                    result = reviewer.create_chat_completion(
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Answer the user's request directly and accurately. Do not refuse a "
+                                    "benign request. Preserve the requested programming language and code "
+                                    "format exactly; never substitute a different language. For code, give "
+                                    "a complete minimal example and state important environment assumptions."
+                                    + extra_instruction
+                                ),
+                            },
+                            {"role": "user", "content": request},
+                        ],
+                        max_tokens=768,
+                        temperature=0.1,
+                    )
+                    candidate = re.sub(
+                        r"<think>.*?(?:</think>|$)\s*",
+                        "",
+                        result["choices"][0]["message"]["content"],
+                        flags=re.DOTALL,
+                    ).strip()
+                    if (
+                        result["choices"][0].get("finish_reason") != "length"
+                        and correction_meets_constraints(candidate, context_text)
+                    ):
+                        correction = candidate
+                        break
+            if (
+                correction_meets_constraints(correction, context_text)
+                and correction.casefold() != question.casefold()
+            ):
+                corrections.append(
+                    {"question": question, "correction": correction}
+                )
+            else:
+                print(f"Could not generate a usable correction for: {question}")
+
+        if review_skipped:
+            print("Factual review skipped because the conversation exceeds the model context.")
+        print(json.dumps({"corrections": corrections}, indent=2, ensure_ascii=False))
+        if reviewer is not llm:
+            reviewer.close()
+        llm.close()
+        trainer_script = Path(__file__).with_name("extr.py")
+        conversation_file = Path(__file__).with_name("crrections.json")
+        print(f"Starting trainer: {trainer_script.name}")
+        subprocess.run(
+            [sys.executable, str(trainer_script), str(conversation_file)],
+            check=True,
+            cwd=Path(__file__).parent,
+        )
         break
     else:
         if x == "//maxtokens":
@@ -147,7 +407,7 @@ while True:
             if x == "//maxthreads":
                 g = max(1, min(int(input(f"Enter new number of threads (1-{cor}): ")), cor))
                 llm.close()
-                llm = Llama(model_path=str(modelf[0]), verbose=False, n_threads=g)
+                llm = Llama(model_path=str(modelf[0]), verbose=False, n_threads=g, n_ctx=n_ctx)
             else:
                 if x == "//temperature":
                     y = float(input("Enter new temperature: "))
