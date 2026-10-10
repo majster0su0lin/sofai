@@ -27,3 +27,6 @@ Use `//model` to change model
 Use `//maxtokens` to change max amount of tokens
 Use `//temperature` to change temp
 Use `//exit` to exit
+
+
+ai was used for fixing the code i mainly code in assembly so this is my first time using python but the logic is mine
