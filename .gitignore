@@ -1,2 +1,4 @@
 *.gguf
 *.part
+/models/trainable_models/
+/models/adapters/

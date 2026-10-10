@@ -6,67 +6,21 @@
     },
     {
       "role": "user",
-      "content": "hh"
+      "content": "heylow"
     },
     {
       "role": "assistant",
-      "content": "//openagain"
+      "content": "I only open files when you ask me to open, read, or explain one.",
+      "model": "qwen2.5-coder-3b-instruct-q8_0.gguf"
     },
     {
       "role": "user",
-      "content": "ha t"
+      "content": "no i said hello"
     },
     {
       "role": "assistant",
-      "content": "//openagain"
-    },
-    {
-      "role": "user",
-      "content": "wah"
-    },
-    {
-      "role": "assistant",
-      "content": "//openagain"
-    },
-    {
-      "role": "user",
-      "content": "what"
-    },
-    {
-      "role": "assistant",
-      "content": "//openagain"
-    },
-    {
-      "role": "user",
-      "content": "no"
-    },
-    {
-      "role": "assistant",
-      "content": "//openagain"
-    },
-    {
-      "role": "user",
-      "content": "what is the radius of a circle"
-    },
-    {
-      "role": "assistant",
-      "content": "The radius of a circle is the distance from the center of the circle to any point on its edge. It is usually denoted by the letter \\( r \\)."
-    },
-    {
-      "role": "user",
-      "content": "and an eqation"
-    },
-    {
-      "role": "assistant",
-      "content": "The equation for the radius \\( r \\) of a circle given its center \\((h, k)\\) and radius \\( r \\) is:\n\n\\[ (x - h)^2 + (y - k)^2 = r^2 \\]\n\nThis equation represents a circle centered at \\((h, k)\\) with radius \\( r \\)."
-    },
-    {
-      "role": "user",
-      "content": "no its circumfurence/(2*pi)=radius"
-    },
-    {
-      "role": "assistant",
-      "content": "The circumference \\( C \\) of a circle is given by the formula:\n\n\\[ C = 2 \\pi r \\]\n\nTo find the radius \\( r \\) from the circumference, you can rearrange this formula to:\n\n\\[ r = \\frac{C}{2 \\pi} \\]\n\nThis equation allows you to calculate the radius given the circumference."
+      "content": "Hello! How can I assist you today?",
+      "model": "qwen2.5-coder-3b-instruct-q8_0.gguf"
     }
   ]
 }
