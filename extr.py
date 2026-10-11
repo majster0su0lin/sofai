@@ -13,6 +13,7 @@ from llama_cpp import Llama
 from peft import LoraConfig, TaskType, get_peft_model
 from torch.utils.data import DataLoader
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from runtime_paths import DATA_DIR
 def collate(examples, tokenizer):
     batch = tokenizer.pad(
         [{"input_ids": example["input_ids"]} for example in examples],
@@ -206,10 +207,24 @@ def train_model(project_dir, gguf_name, corrections):
     llama_cpp_dir = Path(os.environ["LLAMA_CPP_DIR"])
     converter = llama_cpp_dir / "convert_hf_to_gguf.py"
     quantizer = Path(os.environ["LLAMA_QUANTIZE_EXE"])
+    converter_python = Path(
+        os.environ.get("SOFAI_CONVERTER_PYTHON", sys.executable)
+    )
     if not converter.is_file():
         raise FileNotFoundError(f"llama.cpp converter not found: {converter}")
     if not quantizer.is_file():
         raise FileNotFoundError(f"llama.cpp quantizer not found: {quantizer}")
+    if not converter_python.is_file():
+        raise FileNotFoundError(
+            f"Python interpreter for GGUF conversion not found: {converter_python}"
+        )
+    if getattr(sys, "frozen", False) and not os.environ.get(
+        "SOFAI_CONVERTER_PYTHON"
+    ):
+        raise RuntimeError(
+            "Set SOFAI_CONVERTER_PYTHON to a Python interpreter with the "
+            "llama.cpp conversion dependencies before using the packaged trainer."
+        )
 
     converted_dir = (
         project_dir
@@ -234,7 +249,7 @@ def train_model(project_dir, gguf_name, corrections):
 
     subprocess.run(
         [
-            sys.executable,
+            str(converter_python),
             str(converter),
             str(mergedmodeldir),
             "--outfile",
@@ -276,7 +291,7 @@ def train_model(project_dir, gguf_name, corrections):
 
 
 def main():
-    project_dir = Path(__file__).resolve().parent
+    project_dir = DATA_DIR
     if len(sys.argv) > 2:
         raise SystemExit("Usage: extr.py [corrections.json]")
     corrections_file = (
@@ -300,7 +315,7 @@ def main():
     if not isinstance(corrections, list):
         raise ValueError(f"Expected a list of corrections in {corrections_file}.")
 
-    legacy_model_file = Path(__file__).with_name("whichmd.txt")
+    legacy_model_file = project_dir / "whichmd.txt"
     legacy_model_name = (
         legacy_model_file.read_text(encoding="utf-8").strip()
         if legacy_model_file.is_file()

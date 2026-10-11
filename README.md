@@ -27,6 +27,7 @@ Use `//model` to change model
 Use `//maxtokens` to change max amount of tokens
 Use `//temperature` to change temp
 Use `//exit` to exit
+self correction works only when teling tha ai that it did smth wrong
 
 
-ai was used for fixing the code i mainly code in assembly so this is my first time using python but the logic is mine
+ai was used for fixing the code and making the demo deployer i mainly code in assembly so this is my first time using python but the logic is mine

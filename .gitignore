@@ -2,3 +2,10 @@
 *.part
 /models/trainable_models/
 /models/adapters/
+/models/mergedmodels/
+/models/convertedmodels/
+/models/backups/
+/build/
+/dist/
+/sofai.spec
+/sofai-trainer.spec

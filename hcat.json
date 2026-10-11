@@ -10,15 +10,6 @@
     },
     {
       "role": "assistant",
-      "content": "I only open files when you ask me to open, read, or explain one.",
-      "model": "qwen2.5-coder-3b-instruct-q8_0.gguf"
-    },
-    {
-      "role": "user",
-      "content": "no i said hello"
-    },
-    {
-      "role": "assistant",
       "content": "Hello! How can I assist you today?",
       "model": "qwen2.5-coder-3b-instruct-q8_0.gguf"
     }

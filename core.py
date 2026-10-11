@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from llama_cpp import Llama
+from runtime_paths import APP_DIR, DATA_DIR
 def is_file_request(user_text, filenames):
     has_file_reference = any(name.casefold() in user_text.casefold() for name in filenames)
     has_file_action = re.search(
@@ -150,14 +151,14 @@ y = 0.7
 x = ""
 g = cor
 n_ctx = 4096
-model_path = Path(__file__).parent / "models" / "usablemoddels"
+model_path = DATA_DIR / "models" / "usablemoddels"
 modelf = sorted(model_path.glob("*.gguf"))
 if not modelf:
     print("No usable models found in the 'models/usablemoddels' directory.")
-    exit(1)
+    raise SystemExit(1)
 selected_model_path = modelf[0]
 llm = Llama(model_path=str(selected_model_path), verbose=False, n_threads=g, n_ctx=n_ctx)
-mdel = Path(__file__).with_name("whichmd.txt")
+mdel = DATA_DIR / "whichmd.txt"
 mdel.write_text(selected_model_path.name, encoding="utf-8")
 messages = [{
     "role": "system",
@@ -183,7 +184,7 @@ while True:
     x = input("usah>>> ")
     if x == "//exit":
         print("bye bye~")
-        with open("hcat.json", "w", encoding="utf-8") as h:
+        with (DATA_DIR / "hcat.json").open("w", encoding="utf-8") as h:
             json.dump({"messages": messages}, h, indent=2, ensure_ascii=False)
         reviewer = llm
         review_model = next(
@@ -370,7 +371,7 @@ while True:
 
         if review_skipped:
             print("Factual review skipped because the conversation exceeds the model context.")
-        conversation_file = Path(__file__).with_name("corrections.json")
+        conversation_file = DATA_DIR / "corrections.json"
         conversation_file.write_text(
             json.dumps({"corrections": corrections}, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -380,12 +381,22 @@ while True:
             reviewer.close()
         llm.close()
         if corrections:
-            trainer_script = Path(__file__).with_name("extr.py")
+            if getattr(sys, "frozen", False):
+                trainer_script = APP_DIR / "sofai-trainer" / "sofai-trainer.exe"
+                trainer_command = [str(trainer_script), str(conversation_file)]
+            else:
+                trainer_script = APP_DIR / "extr.py"
+                trainer_command = [
+                    sys.executable,
+                    str(trainer_script),
+                    str(conversation_file),
+                ]
             print(f"Starting trainer: {trainer_script.name}")
             subprocess.run(
-                [sys.executable, str(trainer_script), str(conversation_file)],
+                trainer_command,
                 check=True,
-                cwd=Path(__file__).parent,
+                cwd=DATA_DIR,
+                env={**os.environ, "SOFAI_DATA_DIR": str(DATA_DIR)},
             )
         else:
             print("No corrections were generated; skipping training.")
@@ -413,7 +424,7 @@ while True:
                             llm.close()
                             llm = new_llm
                             selected_model_path = new_model_path
-                            mdel = Path(__file__).with_name("whichmd.txt")
+                            mdel = DATA_DIR / "whichmd.txt"
                             mdel.write_text(selected_model_path.name, encoding="utf-8")
                         else:
                             print("Invalid model choice.")
@@ -428,7 +439,7 @@ while True:
                         )
                         response = result["choices"][0]["message"]["content"]
                         response = re.sub(r"<think>.*?</think>\s*", "", response, flags=re.DOTALL).strip()
-                        fl = Path(__file__).parent / "files"
+                        fl = DATA_DIR / "files"
                         available_files = [file for file in fl.iterdir() if file.is_file()]
                         filenames = [file.name for file in available_files]
                         recent_context = "\n".join(
@@ -494,7 +505,7 @@ while True:
                                     "content": response,
                                     "model": selected_model_path.name,
                                 })
-                                with open("hcat.json", "w", encoding="utf-8") as f:
+                                with (DATA_DIR / "hcat.json").open("w", encoding="utf-8") as f:
                                     json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
                                 break
                     else:
@@ -547,5 +558,5 @@ while True:
                             "content": response,
                             "model": selected_model_path.name,
                         })
-                        with open("hcat.json", "w", encoding="utf-8") as f:
+                        with (DATA_DIR / "hcat.json").open("w", encoding="utf-8") as f:
                             json.dump({"messages": messages}, f, indent=2, ensure_ascii=False)
